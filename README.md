@@ -130,6 +130,24 @@ Removes a user.
 }
 ```
 
+### `POST /people/:id/edit`
+
+Takes the exact same parameters as `/people/add`.
+
+#### Example Response
+
+```json
+{
+    "message": "Successfully edited person.",
+    "person": {
+        "id": "hk38gHAPN8",
+        "name": "Joe Bloggy",
+        "tribe": "Spine Core",
+        "fun_fact": "I can't play the piano!"
+    }
+}
+```
+
 -------------------------------
 
 ##### Thomas Judd-Cooper. 2019
