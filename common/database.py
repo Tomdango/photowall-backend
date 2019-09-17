@@ -95,6 +95,25 @@ class PeopleTable(AbstractDatabaseTable):
         self._conn.commit()
         return success
 
+    def edit_person(self, old_person, name, tribe, fun_fact):
+        """
+        Edits a person's entry within the DB
+        """
+        person_id = old_person.get("id")
+        name = name or old_person.get("name")
+        tribe = tribe or old_person.get("tribe")
+        fun_fact = fun_fact or old_person.get("fun_fact")
+
+        sql = """
+            UPDATE {table_name} SET name = ?, tribe = ?, fun_fact = ? WHERE id = ?
+        """.format(table_name=self.TABLE_NAME)
+        cursor = self._conn.cursor()
+        cursor.execute(sql, (name, tribe, fun_fact, person_id))
+        successful = cursor.rowcount == 1
+        cursor.close()
+        self._conn.commit()
+        return successful, {"id": person_id, "name": name, "tribe": tribe, "fun_fact": fun_fact} if successful else old_person
+
     @staticmethod
     def _tupleToDict(results, array=False):
         def process(result):

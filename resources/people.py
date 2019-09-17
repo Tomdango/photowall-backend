@@ -11,6 +11,32 @@ import os
 
 PeopleDB = PeopleTable()
 
+def check_upload(uploaded_file):
+    """
+    Check the uploaded image to ensure that it:
+    - Is an image
+    - Is a .jpg or .jpeg file
+    - Is a .png that file that can be converted
+    """
+    if uploaded_file.filename == "":
+        return False, "No image was selected", None
+    if uploaded_file.content_type == "image/png":
+        return True, None, True
+    elif uploaded_file.content_type == "image/jpeg":
+        return True, None, False
+    else:
+        return False, "Unknown Image File Type", None
+
+def save_photo(image, person_id, is_png):
+    """
+    Saves the photo
+    """
+    pillow_image = Image.open(image)
+    if is_png:
+        pillow_image = pillow_image.convert("RGB")
+    pillow_image.save("static/assets/images/{}.jpg".format(person_id), 'JPEG', quality=95)
+
+
 class GetPeople(Resource):
     def get(self):
         """ Retrieves people within the SQLite database. """
@@ -45,14 +71,14 @@ class AddPerson(Resource):
         if not name or not tribe or not fun_fact or not image:
             return abort(400, message="name, tribe, fun_fact and image are all required.")
 
-        is_valid, error, is_png = self._check_upload(image)
+        is_valid, error, is_png = check_upload(image)
         if not is_valid:
             return abort(400, message=error)
 
         success, person_id = PeopleDB.add_person(name, fun_fact, tribe)
         if not success:
             return abort(500, message="Failed to add new person to DB")
-        self._save_photo(image, person_id, is_png)
+        save_photo(image, person_id, is_png)
         return {
             "message": "Successfully added person.",
             "person": {
@@ -63,30 +89,12 @@ class AddPerson(Resource):
             }
         }
 
-    def _check_upload(self, uploaded_file):
-        """
-        Check the uploaded image to ensure that it:
-        - Is an image
-        - Is a .jpg or .jpeg file
-        - Is a .png that file that can be converted
-        """
-        if uploaded_file.filename == "":
-            return False, "No image was selected", None
-        if uploaded_file.content_type == "image/png":
-            return True, None, True
-        elif uploaded_file.content_type == "image/jpeg":
-            return True, None, False
-        else:
-            return False, "Unknown Image File Type", None
-
-    def _save_photo(self, image, person_id, is_png):
-        pillow_image = Image.open(image)
-        if is_png:
-            pillow_image = pillow_image.convert("RGB")
-        pillow_image.save("static/assets/images/{}.jpg".format(person_id), 'JPEG', quality=95)
 
 class Person(Resource):
     def get(self, person_id):
+        """
+        Retrieves a Person from the DB
+        """
         person = PeopleDB.get_person_by_id(person_id)
         if not person:
             return abort(404, message="Person Not Found")
@@ -138,4 +146,37 @@ class GetPersonPhoto(Resource):
 
 class EditPerson(Resource):
     def post(self, person_id):
-        pass
+        """
+        Edits a Person, both editing the entry in the database
+        and the image if necessary.
+        """
+        person = PeopleDB.get_person_by_id(person_id)
+        if not person:
+            return abort(404, message="Person Not Found")
+        name = request.form.get("name")
+        tribe = request.form.get("tribe")
+        fun_fact = request.form.get("fun_fact")
+        image = request.files.get("image")
+
+        if not name and not tribe and not fun_fact and not image:
+            return abort(400, message="Either name, tribe, fun_fact or image are required.")
+        if image:
+            is_valid, error, is_png = check_upload(image)
+            if not is_valid:
+                return abort(400, message=error)
+            imagepath = "static/assets/images/{}.jpg".format(person_id)
+            if os.path.exists(imagepath):
+                os.remove(imagepath)
+            save_photo(image, person_id, is_png)
+
+        # If name, tribe or fun_fact not supplied, there's no need to touch the DB
+        new_person = person
+        if name or tribe or fun_fact:
+            success, new_person = PeopleDB.edit_person(person, name, tribe, fun_fact)
+            if not success:
+                return abort(400, message="Failed to edit person.")
+
+        return {
+            "message": "Successfully edited person.",
+            "person": new_person
+        }
